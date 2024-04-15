@@ -55,11 +55,10 @@ async function _init(props) {
   locale || (locale = PickerProps.locale.value)
 
   if (!Data) {
-    Data =
-      (typeof props.data === 'function' ? await props.data() : props.data) ||
-      (await fetchJSON(
-        `https://cdn.jsdelivr.net/npm/@emoji-mart/data@latest/sets/${emojiVersion}/${set}.json`,
-      ))
+    Data = (typeof props.data === 'function' ? await props.data() : props.data)
+      // (await fetchJSON(
+      //   `https://cdn.jsdelivr.net/npm/@emoji-mart/data@latest/sets/${emojiVersion}/${set}.json`,
+      // ))
 
     Data.emoticons = {}
     Data.natives = {}

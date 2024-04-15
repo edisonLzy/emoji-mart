@@ -22,6 +22,7 @@ export default class Picker extends Component {
 
     this.state = {
       pos: [-1, -1],
+      // perLine 是干啥的 ？ 每行有几个 ？ 
       perLine: this.initDynamicPerLine(props),
       visibleRows: { 0: true },
       ...this.getInitialState(props),
@@ -46,7 +47,7 @@ export default class Picker extends Component {
       skinToneButton: createRef(),
       skinToneRadio: createRef(),
     }
-
+    // ! 初始化 emoji grid
     this.initGrid()
 
     if (
@@ -153,7 +154,7 @@ export default class Picker extends Component {
     const { categories } = Data
 
     this.refs.categories = new Map()
-
+    // category是否变化了之后, scroll 重置 ? 
     const navKey = Data.categories.map((category) => category.id).join(',')
     if (this.navKey && this.navKey != navKey) {
       this.refs.scroll.current && (this.refs.scroll.current.scrollTop = 0)
@@ -161,17 +162,21 @@ export default class Picker extends Component {
     this.navKey = navKey
 
     this.grid = []
+    // 记录 setsize 记录所有 emoji 的数量
     this.grid.setsize = 0
 
     const addRow = (rows, category) => {
       const row = []
       row.__categoryId = category.id
+      // row.__index: 记录当前row在当前categories中的 index
       row.__index = rows.length
       this.grid.push(row)
 
       const rowIndex = this.grid.length - 1
+      // Performance.rowsPerRender ？ 
       const rowRef = rowIndex % Performance.rowsPerRender ? {} : createRef()
       rowRef.index = rowIndex
+      // posinset的作用 ？ 
       rowRef.posinset = this.grid.setsize + 1
       rows.push(rowRef)
 
@@ -179,10 +184,13 @@ export default class Picker extends Component {
     }
 
     for (let category of categories) {
+      // 当前分类下的所有 rows
       const rows = []
+      //
       let row = addRow(rows, category)
 
       for (let emoji of category.emojis) {
+        // row.length 记录每一行的 emoji 数量
         if (row.length == this.getPerLine()) {
           row = addRow(rows, category)
         }
@@ -190,9 +198,13 @@ export default class Picker extends Component {
         this.grid.setsize += 1
         row.push(emoji)
       }
-
+      // category -> rows
+      // root是保存当前分类的DOM节点吗 ？ 
       this.refs.categories.set(category.id, { root: createRef(), rows })
     }
+
+    console.log(this.grid);
+    
   }
 
   darkMediaCallback = () => {
@@ -246,7 +258,7 @@ export default class Picker extends Component {
       this.closeSkins()
     }
   }
-
+  // 根据容器以及 emojiButtonSize 计算每行有多少个 emoji
   initDynamicPerLine(props = this.props) {
     if (!props.dynamicWidth) return
     const { element, emojiButtonSize } = props
@@ -284,7 +296,7 @@ export default class Picker extends Component {
     if (!emoji) return
     return SearchIndex.get(emoji)
   }
-
+  // 滚动高亮 navigation
   observeCategories() {
     const navigation = this.refs.navigation.current
     if (!navigation) return
@@ -324,6 +336,7 @@ export default class Picker extends Component {
   }
 
   observeRows() {
+    // visibleRows: 虚拟列表
     const visibleRows = { ...this.state.visibleRows }
 
     const observer = new IntersectionObserver(
@@ -371,10 +384,11 @@ export default class Picker extends Component {
   }
 
   handleSearchInput = async () => {
+    //
     const input = this.refs.searchInput.current
     if (!input) return
-
     const { value } = input
+    // SearchIndex: 搜索逻辑
     const searchResults = await SearchIndex.search(value)
     const afterRender = () => {
       if (!this.refs.scroll.current) return
@@ -384,7 +398,7 @@ export default class Picker extends Component {
     if (!searchResults) {
       return this.setState({ searchResults, pos: [-1, -1] }, afterRender)
     }
-
+    // 
     const pos = input.selectionStart == input.value.length ? [0, 0] : [-1, -1]
     const grid = []
     grid.setsize = searchResults.length
@@ -471,50 +485,58 @@ export default class Picker extends Component {
     input.blur()
   }
 
+  // 键盘导航的核心方法
   navigate({ e, input, left, right, up, down }) {
     const grid = this.state.searchResults || this.grid
     if (!grid.length) return
 
+    // [row, col]
     let [p1, p2] = this.state.pos
 
     const pos = (() => {
+      // [0, 0] -> 搜索框
       if (p1 == 0) {
         if (p2 == 0 && !e.repeat && (left || up)) {
           return null
         }
       }
-
+      // 搜索框 -> [0,0]
       if (p1 == -1) {
         if (
+          // https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/repeat
           !e.repeat &&
           (right || down) &&
+          // 光标是否在最后
           input.selectionStart == input.value.length
         ) {
           return [0, 0]
         }
-
+        // 在input中移动光标
         return null
       }
-
+    
       if (left || right) {
+
         let row = grid[p1]
         const increment = left ? -1 : 1
 
         p2 += increment
         if (!row[p2]) {
+          // 移动到下一行/上一行
           p1 += increment
           row = grid[p1]
 
+          // 第一行第一个/最后一行最后一个
           if (!row) {
             p1 = left ? 0 : grid.length - 1
             p2 = left ? 0 : grid[p1].length - 1
-
             return [p1, p2]
           }
-
+          // 移动到下一行的第一个/上一行的最后一个
           p2 = left ? row.length - 1 : 0
         }
 
+        // 同一行中移动
         return [p1, p2]
       }
 
@@ -547,6 +569,7 @@ export default class Picker extends Component {
       return
     }
 
+    // 设置pos出发更新
     this.setState({ pos, keyboard: true }, () => {
       this.scrollTo({ row: pos[0] })
     })
@@ -565,11 +588,11 @@ export default class Picker extends Component {
       categoryId = grid[row].__categoryId
     }
 
+    // 获取到特定的分类的 ref
     if (categoryId) {
       const ref =
         this.refs[categoryId] || this.refs.categories.get(categoryId).root
       const categoryRect = ref.current.getBoundingClientRect()
-
       scrollTop = categoryRect.top - (scrollRect.top - scroll.scrollTop) + 1
     }
 
@@ -753,8 +776,9 @@ export default class Picker extends Component {
     const skin = this.state.tempSkin || this.state.skin
     const emojiSkin = emoji.skins[skin - 1] || emoji.skins[0]
     const native = emojiSkin.native
-    const selected = deepEqual(this.state.pos, pos)
     const key = pos.concat(emoji.id).join('')
+    // selected: 根据 pos 和 自己的 pos 判断是否选中
+    const selected = deepEqual(this.state.pos, pos)
 
     return (
       <PureInlineComponent key={key} {...{ selected, skin, size }}>
@@ -925,14 +949,15 @@ export default class Picker extends Component {
                   const emojiIds = category.emojis.slice(start, end)
 
                   if (emojiIds.length < perLine) {
+                    // 补起一行 每一行使用的是 space-between
                     emojiIds.push(...new Array(perLine - emojiIds.length))
                   }
 
                   return (
                     <div
+                      ref={ref}
                       key={row.index}
                       data-index={row.index}
-                      ref={ref}
                       class="flex row"
                       style={{ top: i * this.props.emojiButtonSize }}
                     >
@@ -952,6 +977,7 @@ export default class Picker extends Component {
                           const emoji = SearchIndex.get(emojiId)
 
                           return this.renderEmojiButton(emoji, {
+                            // 每一个 emoji 的 pos: 第几行第几个
                             pos: [row.index, ii],
                             posinset: row.posinset + ii,
                             grid: this.grid,
@@ -1090,6 +1116,7 @@ export default class Picker extends Component {
   }
 
   render() {
+    // 行宽
     const lineWidth = this.props.perLine * this.props.emojiButtonSize
 
     return (
@@ -1121,6 +1148,7 @@ export default class Picker extends Component {
           >
             {this.props.searchPosition == 'static' && this.renderSearch()}
             {this.renderSearchResults()}
+            {/* 渲染图标 */}
             {this.renderCategories()}
           </div>
         </div>
